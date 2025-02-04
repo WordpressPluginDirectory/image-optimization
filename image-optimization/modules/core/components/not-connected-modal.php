@@ -81,12 +81,8 @@ class Not_Connected_Modal {
 			}
 
 			if (
-				Utils::is_media_page() ||
-				Utils::is_plugin_page() ||
-				Utils::is_single_attachment_page() ||
-				Utils::is_media_upload_page() ||
-				Utils::is_wp_dashboard_page() ||
-				Utils::is_wp_updates_page()
+				Utils::is_plugin_settings_page() ||
+				Utils::is_bulk_optimization_page()
 			) {
 				add_action( 'admin_notices', [ $this, 'render_not_connected_modal' ] );
 			}
