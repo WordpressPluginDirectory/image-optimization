@@ -146,7 +146,7 @@ class Client {
 			$method,
 			$endpoint,
 			[
-				'timeout' => 100,
+				'timeout' => 50,
 				'headers' => $headers,
 				'body' => $body,
 			]

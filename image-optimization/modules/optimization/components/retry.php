@@ -4,6 +4,7 @@ namespace ImageOptimization\Modules\Optimization\Components;
 
 use ImageOptimization\Classes\Async_Operation\{
 	Async_Operation,
+	Async_Operation_Hook,
 	Async_Operation_Queue,
 	Exceptions\Async_Operation_Exception,
 	Queries\Image_Optimization_Operation_Query,
@@ -56,6 +57,17 @@ class Retry {
 
 		// Ensure it's the optimization action we want to reschedule
 		if ( Async_Operation_Queue::OPTIMIZE !== $action->get_queue() ) {
+			return;
+		}
+
+		// Skip bulk operations
+		$hook = $action->get_hook();
+
+		if ( in_array( $hook, [
+			Async_Operation_Hook::OPTIMIZE_BULK,
+			Async_Operation_Hook::REOPTIMIZE_BULK,
+		], true ) ) {
+			Logger::info( "Skipping retry for bulk operation {$action_id}" );
 			return;
 		}
 

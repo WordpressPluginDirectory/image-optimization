@@ -3,7 +3,7 @@
 namespace ImageOptimization\Modules\Optimization\Rest;
 
 use ImageOptimization\Modules\Optimization\Classes\{
-	Bulk_Optimization_Controller,
+	Bulk_Optimization\Bulk_Optimization_Controller,
 	Route_Base,
 };
 use Throwable;
@@ -28,10 +28,14 @@ class Cancel_Bulk_Optimization extends Route_Base {
 	}
 
 	public function POST( WP_REST_Request $request ) {
-		$this->verify_nonce_and_capability(
+		$error = $this->verify_nonce_and_capability(
 			$request->get_param( self::NONCE_NAME ),
 			self::NONCE_NAME
 		);
+
+		if ( $error ) {
+			return $error;
+		}
 
 		if ( ! Plugin::instance()->modules_manager->get_modules( 'connect-manager' )->connect_instance->is_activated() ) {
 			return $this->respond_error_json([

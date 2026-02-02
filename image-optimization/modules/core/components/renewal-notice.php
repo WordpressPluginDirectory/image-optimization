@@ -64,15 +64,15 @@ class Renewal_Notice {
 				</svg>
 				<p>
 					<b>
-						<?php echo $text['title']; ?>
+						<?php echo esc_html( $text['title'] ); ?>
 					</b>
 					<span>
-						<?php echo $text['description']; ?>
+						<?php echo esc_html( $text['description'] ); ?>
 					</span>
 				</p>
 			</div>
-			<a href="<?php echo $text['link']; ?>" target="_blank" rel="noopener noreferrer">
-				<?php echo $text['btn']; ?>
+			<a href="<?php echo esc_url( $text['link'] ); ?>" target="_blank" rel="noopener noreferrer">
+				<?php echo esc_html( $text['btn'] ); ?>
 			</a>
 		</div>
 
@@ -80,7 +80,7 @@ class Renewal_Notice {
 			jQuery( document ).ready( function( $ ) {
 				setTimeout(() => {
 					const $msInOneDay = 24 * 60 * 60 * 1000;
-					const $time_dismissed = localStorage.getItem('<?php echo self::RENEWAL_NOTICE_SLUG; ?>');
+					const $time_dismissed = localStorage.getItem('<?php echo esc_js( self::RENEWAL_NOTICE_SLUG ); ?>');
 					const $show_notice = !$time_dismissed || Date.now() - $time_dismissed >= $msInOneDay;
 
 					const $notice = $( '[data-notice-slug="<?php echo esc_js( self::RENEWAL_NOTICE_SLUG ); ?>"]' );

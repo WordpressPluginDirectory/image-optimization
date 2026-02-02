@@ -18,6 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 		data-image-optimization-can-be-restored="<?php echo esc_attr( $args['can_be_restored'] ); ?>">
 
 	<?php
+	$error_type = isset( $args['optimization_error_type'] ) ? $args['optimization_error_type'] : '';
 	$message = esc_html( $args['message'] );
 
 	if ( false === $args['allow_retry'] ) {
@@ -34,7 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	<span class='image-optimization-control__error-message'><?php echo $message; ?></span>
 
 	<?php
-	if ( Image_Optimization_Error_Type::AUTH_ERROR === $args['optimization_error_type'] ) {
+	if ( Image_Optimization_Error_Type::AUTH_ERROR === $error_type ) {
 		?>
 		<a class="button button-secondary button-large image-optimization-control__button"
 			 href="<?php echo admin_url( 'admin.php?page=' . Settings_Module::SETTING_BASE_SLUG . '&action=connect' ); ?>"
@@ -42,7 +43,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 			<?php esc_html_e( 'Connect', 'image-optimization' ); ?>
 		</a>
 		<?php
-	} if ( Image_Optimization_Error_Type::CONNECTION_ERROR === $args['optimization_error_type'] ) {
+	} if ( Image_Optimization_Error_Type::CONNECTION_ERROR === $error_type ) {
 		?>
 		<button class="button button-secondary button-large button-link-delete image-optimization-control__button image-optimization-control__button--try-again"
 						type="button">

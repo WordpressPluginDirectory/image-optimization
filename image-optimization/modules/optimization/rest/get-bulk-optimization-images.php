@@ -3,7 +3,7 @@
 namespace ImageOptimization\Modules\Optimization\Rest;
 
 use ImageOptimization\Modules\Optimization\Classes\{
-	Bulk_Optimization_Controller,
+	Bulk_Optimization\Bulk_Optimization_Controller,
 	Route_Base,
 };
 
@@ -25,18 +25,9 @@ class Get_Bulk_Optimization_Images extends Route_Base {
 		return [ 'GET' ];
 	}
 
-	public function GET( WP_REST_Request $request ) {
+	public function GET() {
 		try {
-			$operation_id = $request->get_param( 'operation_id' );
-
-			if ( empty( $operation_id ) ) {
-				return $this->respond_error_json([
-					'message' => esc_html__( 'Missed operation id', 'image-optimization' ),
-					'code' => 'bad_request',
-				]);
-			}
-
-			$images = Bulk_Optimization_Controller::get_processed_images( $operation_id );
+			$images = Bulk_Optimization_Controller::get_processed_images();
 
 			return $this->respond_success_json([
 				'images' => $images,

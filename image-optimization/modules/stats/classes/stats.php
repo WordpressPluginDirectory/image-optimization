@@ -5,10 +5,14 @@ namespace ImageOptimization\Modules\Stats\Classes;
 use ImageOptimization\Classes\Async_Operation\{
 	Async_Operation,
 	Async_Operation_Hook,
-	Queries\Image_Optimization_Operation_Query,
 	Queries\Operation_Query,
 };
 use ImageOptimization\Classes\Image\Image_Query_Builder;
+use ImageOptimization\Modules\Optimization\Classes\Bulk_Optimization\{
+	Bulk_Optimization_Queue,
+	Bulk_Optimization_Queue_Status,
+	Bulk_Optimization_Queue_Type
+};
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -17,14 +21,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Stats {
 	public static function calculate_global_stats(): array {
 		$bulk_optimization_operation_status = self::get_bulk_optimization_status();
-		$bulk_optimization_operation_id = Async_Operation::OPERATION_STATUS_RUNNING === $bulk_optimization_operation_status
-			? self::get_bulk_optimization_active_operation_id()
-			: null;
 
 		return [
 			'optimization_stats' => Optimization_Stats::get_image_stats(),
 			'bulk_optimization_status' => $bulk_optimization_operation_status,
-			'bulk_optimization_operation_id' => $bulk_optimization_operation_id,
 			'bulk_restoring_status' => self::get_bulk_restoring_status(),
 			'bulk_backup_removing_status' => self::get_bulk_backup_removing_status(),
 			'backups_exist' => self::backups_exist(),
@@ -32,52 +32,27 @@ class Stats {
 	}
 
 	private static function get_bulk_optimization_status(): string {
-		$active_query = ( new Image_Optimization_Operation_Query() )
-			->set_hook( Async_Operation_Hook::OPTIMIZE_BULK )
-			->set_status( [
-				Async_Operation::OPERATION_STATUS_PENDING,
-				Async_Operation::OPERATION_STATUS_RUNNING,
-			] )
-			->set_limit( 1 );
+		$queue = new Bulk_Optimization_Queue( Bulk_Optimization_Queue_Type::OPTIMIZATION );
 
-		$active_operations = Async_Operation::get( $active_query );
-
-		if ( empty( $active_operations ) ) {
+		if ( ! $queue->exists() ) {
 			return Async_Operation::OPERATION_STATUS_NOT_STARTED;
 		}
 
-		$operation_id = $active_operations[0]->get_args()['operation_id'];
-		$cancelled_query = ( new Image_Optimization_Operation_Query() )
-			->set_hook( Async_Operation_Hook::OPTIMIZE_BULK )
-			->set_status( Async_Operation::OPERATION_STATUS_CANCELED )
-			->set_bulk_operation_id( $operation_id )
-			->set_limit( 1 );
+		$queue_status = $queue->get_status();
 
-		$cancelled_operations = Async_Operation::get( $cancelled_query );
+		switch ( $queue_status ) {
+			case Bulk_Optimization_Queue_Status::PROCESSING:
+			case Bulk_Optimization_Queue_Status::PENDING:
+				return Async_Operation::OPERATION_STATUS_RUNNING;
 
-		if ( ! empty( $cancelled_operations ) ) {
-			return Async_Operation::OPERATION_STATUS_CANCELED;
+			case Bulk_Optimization_Queue_Status::CANCELLED:
+				return Async_Operation::OPERATION_STATUS_CANCELED;
+
+			case Bulk_Optimization_Queue_Status::COMPLETED:
+			case Bulk_Optimization_Queue_Status::FAILED:
+			default:
+				return Async_Operation::OPERATION_STATUS_NOT_STARTED;
 		}
-
-		return Async_Operation::OPERATION_STATUS_RUNNING;
-	}
-
-	private static function get_bulk_optimization_active_operation_id(): ?string {
-		$active_query = ( new Image_Optimization_Operation_Query() )
-			->set_hook( Async_Operation_Hook::OPTIMIZE_BULK )
-			->set_status( [
-				Async_Operation::OPERATION_STATUS_PENDING,
-				Async_Operation::OPERATION_STATUS_RUNNING,
-			] )
-			->set_limit( 1 );
-
-		$active_operation = Async_Operation::get( $active_query );
-
-		if ( empty( $active_operation ) ) {
-			return null;
-		}
-
-		return $active_operation[0]->get_args()['operation_id'];
 	}
 
 	private static function get_bulk_restoring_status(): string {

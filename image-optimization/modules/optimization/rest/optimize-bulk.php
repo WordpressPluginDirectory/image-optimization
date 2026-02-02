@@ -4,7 +4,7 @@ namespace ImageOptimization\Modules\Optimization\Rest;
 
 use ImageOptimization\Classes\Async_Operation\Exceptions\Async_Operation_Exception;
 use ImageOptimization\Modules\Optimization\Classes\{
-	Bulk_Optimization_Controller,
+	Bulk_Optimization\Bulk_Optimization_Controller,
 	Route_Base,
 };
 use ImageOptimization\Classes\Image\Exceptions\Invalid_Image_Exception;
@@ -31,10 +31,14 @@ class Optimize_Bulk extends Route_Base {
 	}
 
 	public function POST( WP_REST_Request $request ) {
-		$this->verify_nonce_and_capability(
+		$error = $this->verify_nonce_and_capability(
 			$request->get_param( self::NONCE_NAME ),
 			self::NONCE_NAME
 		);
+
+		if ( $error ) {
+			return $error;
+		}
 
 		if ( ! Plugin::instance()->modules_manager->get_modules( 'connect-manager' )->connect_instance->is_activated() ) {
 			return $this->respond_error_json([
@@ -73,7 +77,7 @@ class Optimize_Bulk extends Route_Base {
 			] );
 		}
 
-		Bulk_Optimization_Controller::find_images_and_schedule_optimization();
+		Bulk_Optimization_Controller::create_optimization_queue();
 
 		return $this->respond_success_json();
 	}
@@ -91,7 +95,7 @@ class Optimize_Bulk extends Route_Base {
 			] );
 		}
 
-		Bulk_Optimization_Controller::find_optimized_images_and_schedule_reoptimization();
+		Bulk_Optimization_Controller::create_reoptimization_queue();
 
 		return $this->respond_success_json();
 	}

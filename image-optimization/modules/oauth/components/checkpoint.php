@@ -35,8 +35,8 @@ class Checkpoint {
 			'POST',
 			'status/checkpoint',
 			[
-					'event_name' => $event_name,
-					'event_data' => $event_data,
+				'event_name' => $event_name,
+				'event_data' => $event_data,
 			]
 		);
 	}

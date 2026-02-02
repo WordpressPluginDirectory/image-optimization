@@ -36,7 +36,7 @@ class Not_Connected {
 				</b>
 
 				<span>
-					<a href="<?php echo admin_url( 'admin.php?page=' . \ImageOptimization\Modules\Settings\Module::SETTING_BASE_SLUG . '&action=connect' ); ?>">
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . \ImageOptimization\Modules\Settings\Module::SETTING_BASE_SLUG . '&action=connect' ) ); ?>">
 						<?php esc_html_e(
 							'Connect now',
 							'image-optimization'
@@ -72,7 +72,7 @@ class Not_Connected {
 							e.preventDefault();
 
 							onNotConnectedNoticeClose().promise().done(() => {
-								window.open( $( this ).attr( 'href' ), '_blank' ).focus();
+								window.open( $( this ).attr( 'href' ), '_self' ).focus();
 
 								$closeButton.click();
 							});

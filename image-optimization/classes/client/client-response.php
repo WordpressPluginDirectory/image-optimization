@@ -41,6 +41,7 @@ class Client_Response {
 		$this->known_errors = [
 			'user reached limit' => new Quota_Exceeded_Error( esc_html__( 'Plan quota reached', 'image-optimization' ) ),
 			'Bulk token expired' => new Bulk_Token_Expired_Error( esc_html__( 'Bulk token expired', 'image-optimization' ) ),
+			'bulk request reached limit' => new Bulk_Token_Expired_Error( esc_html__( 'Bulk token expired', 'image-optimization' ) ),
 			'Image already optimized' => new Image_Already_Optimized_Error( esc_html__( 'Image already optimized', 'image-optimization' ) ),
 			'Token Auth Guard Request Failed!: Invalid Token' => new Connection_Error( esc_html__( 'Connection error', 'image-optimization' ) ),
 		];

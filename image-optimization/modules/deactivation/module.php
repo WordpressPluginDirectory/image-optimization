@@ -74,7 +74,6 @@ class Module extends Module_Base {
 				'ajaxurl' => admin_url( 'admin-ajax.php' ),
 			]
 		);
-		
 	}
 
 	/**
@@ -231,7 +230,7 @@ class Module extends Module_Base {
 			Logger::log( Logger::LEVEL_ERROR, 'Failed to post feedback: ' . $error_message );
 			return false;
 		}
-		
+
 		return true;
 	}
 

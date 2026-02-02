@@ -270,7 +270,6 @@ class Module extends Module_Base {
 		 * @var ImageOptimizer\Modules\ConnectManager\Module $module
 		 */
 		$module = Plugin::instance()->modules_manager->get_modules( 'connect-manager' );
-		$is_connect_on_fly = $module->connect_instance->get_is_connect_on_fly();
 		$connect_email = $module->connect_instance->get_connect_data()['user']['email'] ?? null;
 		$show_reset = ! $module->connect_instance->is_connected()
 							&& ( $module->connect_instance->get_client_id() || $module->connect_instance->get_client_secret() );
@@ -279,7 +278,7 @@ class Module extends Module_Base {
 			'image-optimization-admin',
 			'imageOptimizerUserData',
 			[
-				'isConnectOnFly' => $is_connect_on_fly,
+				'isConnectOnFly' => self::is_connect_on_fly(),
 				'isConnected' => $module->connect_instance->is_connected(),
 				'isElementorOne' => self::is_elementor_one(),
 				'currentPage' => get_current_screen()->base,
@@ -316,7 +315,26 @@ class Module extends Module_Base {
 		return ( Utils::is_media_page() || Utils::is_plugin_page() ) && Utils::user_is_admin();
 	}
 
+	private static function is_connect_on_fly(): bool {
+		/**
+		 * @var ImageOptimizer\Modules\ConnectManager\Module $module
+		 */
+		$module = Plugin::instance()->modules_manager->get_modules( 'connect-manager' );
+		return $module->connect_instance->get_is_connect_on_fly();
+	}
+
 	public static function is_elementor_one(): bool {
+
+		if ( ! self::is_connect_on_fly() ) {
+			return false;
+		}
+
+		$connect = Connect_Module::get_connect();
+
+		if ( ! $connect ) {
+			return false;
+		}
+
 		return Connect_Module::get_connect()->get_config( 'app_type' ) !== Config::APP_TYPE;
 	}
 

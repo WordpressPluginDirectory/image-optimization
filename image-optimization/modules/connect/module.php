@@ -32,7 +32,7 @@ class Module extends Module_Base {
 		return ! ! $access_token && $facade->utils()->is_valid_home_url();
 	}
 
-	public static function get_connect(): Facade {
+	public static function get_connect(): ?Facade {
 		return Facade::get( Config::PLUGIN_SLUG);
 	}
 

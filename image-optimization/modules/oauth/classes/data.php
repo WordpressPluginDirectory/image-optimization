@@ -12,7 +12,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Class Data
  */
 class Data {
-
 	const CONNECT_CLIENT_DATA_OPTION_NAME = 'image_optimizer_client_data';
 	const CONNECT_DATA_OPTION_NAME = 'image_optimizer_connect_data';
 	const OPTION_CONNECT_SITE_KEY = 'image_optimizer_site_key';
@@ -43,7 +42,6 @@ class Data {
 		] );
 	}
 
-
 	/**
 	 * get_client_id
 	 * @return string
@@ -69,7 +67,7 @@ class Data {
 	 */
 	public static function get_connect_data( bool $force = false ): array {
 		static $connect_data = null;
-		if ( $connect_data === null || $force ) {
+		if ( null === $connect_data || $force ) {
 			$connect_data = array_merge(
 				[
 					'access_token'        => '',

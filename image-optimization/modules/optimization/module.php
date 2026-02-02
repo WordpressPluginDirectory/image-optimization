@@ -7,9 +7,11 @@ use ImageOptimization\Modules\Optimization\Rest\Optimize_Single_Image;
 use ImageOptimization\Modules\Settings\Module as Settings_Module;
 use Throwable;
 
+// @codeCoverageIgnoreStart
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
+// @codeCoverageIgnoreEnd
 
 class Module extends Module_Base {
 	public function get_name(): string {
@@ -37,6 +39,7 @@ class Module extends Module_Base {
 			'Admin_Bulk_Actions',
 			'Admin_Filter',
 			'Retry',
+			'Bulk_Operation_Recovery',
 			'Actions_Cleanup',
 		];
 	}

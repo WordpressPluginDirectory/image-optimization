@@ -3,140 +3,263 @@
 namespace ImageOptimization\Modules\Optimization\Components;
 
 use ImageOptimization\Classes\Async_Operation\{
+	Async_Operation,
 	Async_Operation_Hook,
-	Exceptions\Async_Operation_Exception,
+	Async_Operation_Queue,
 };
 
 use ImageOptimization\Classes\Image\{
-	Image,
 	Image_Meta,
-	Image_Optimization_Error_Type,
-	Image_Restore,
-	Image_Status,
+	Image_Status
 };
 
 use ImageOptimization\Modules\Optimization\{
 	Classes\Exceptions\Bulk_Token_Expired_Error,
-	Classes\Exceptions\Image_File_Already_Exists_Error,
 	Classes\Optimize_Image,
-	Classes\Bulk_Optimization_Controller,
-	Components\Exceptions\Bulk_Optimization_Token_Not_Found_Error,
+	Classes\Bulk_Optimization\Bulk_Optimization_Queue,
+	Classes\Bulk_Optimization\Bulk_Optimization_Queue_Status,
+	Classes\Bulk_Optimization\Bulk_Optimization_Queue_Type,
+	Classes\Bulk_Optimization\Bulk_Optimization_Token_Manager,
 };
 
 use ImageOptimization\Classes\Logger;
 use ImageOptimization\Classes\Utils;
 use ImageOptimization\Classes\Exceptions\Quota_Exceeded_Error;
-use ImageOptimization\Modules\Connect\Classes\Exceptions\Connection_Error;
-use ImageOptimization\Modules\Stats\Classes\Optimization_Stats;
 use Throwable;
 
+// @codeCoverageIgnoreStart
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
+// @codeCoverageIgnoreEnd
 
 class Bulk_Optimization {
-	const BULK_OPTIMIZATION_BASE_SLUG = 'image-optimization-bulk-optimization';
-	const BULK_OPTIMIZATION_CAPABILITY = 'manage_options';
-
-	public function render_app() {
-		?>
-		<!-- The hack required to wrap WP notifications -->
-		<div class="wrap">
-			<h1 style="display: none;" role="presentation"></h1>
-		</div>
-
-		<div id="image-optimization-app"></div>
-		<?php
-	}
-
 	/** @async */
-	public function optimize_bulk( int $image_id, string $operation_id ) {
-		try {
-			$bulk_token = Bulk_Optimization_Controller::get_bulk_operation_token( $operation_id );
+	public function optimize_bulk() {
+		$queue = new Bulk_Optimization_Queue( Bulk_Optimization_Queue_Type::OPTIMIZATION );
 
+		if ( ! $queue->exists() ) {
+			Logger::debug( 'Bulk optimization queue did not found' );
+
+			return;
+		}
+
+		if ( ! $queue->has_more_images() ) {
+			Logger::debug( 'No more pending images, deleting queue' );
+			$queue->delete();
+
+			return;
+		}
+
+		if ( $queue->should_refresh_token() ) {
+			Logger::debug( 'Refreshing bulk token' );
+
+			try {
+				$token_data = Bulk_Optimization_Token_Manager::obtain_token(
+					$queue->get_stats()[ Bulk_Optimization_Queue_Status::PENDING ],
+					$queue->get_max_batch_size()
+				);
+
+				$queue
+					->set_bulk_token(
+						$token_data['token'],
+						time() + HOUR_IN_SECONDS,
+						$token_data['batch_size']
+					)
+					->save();
+			} catch ( Throwable $t ) {
+				Logger::info( 'Failed to obtain a bulk token: ' . $t->getMessage() );
+
+				foreach ( $queue->get_images_by_status( Bulk_Optimization_Queue_Status::PENDING ) as $image ) {
+					( new Image_Meta( $image['id'] ) )
+						->set_status( Image_Status::NOT_OPTIMIZED )
+						->save();
+				}
+
+				$queue->delete();
+
+				return;
+			}
+		}
+
+		$image_id = $queue->get_next_image();
+
+		Logger::debug( 'Processing image: ' . $image_id );
+
+		if ( ! $image_id ) {
+			Logger::debug( 'No image to process, deleting queue' );
+			$queue->delete();
+
+			return;
+		}
+
+		$queue
+			->set_current_image_id( $image_id )
+			->save();
+
+		try {
 			$oi = new Optimize_Image(
 				$image_id,
 				'bulk',
-				$bulk_token
+				$queue->get_bulk_token()
 			);
 
 			$oi->optimize();
-		} catch ( Quota_Exceeded_Error $qe ) {
-			( new Image_Meta( $image_id ) )
-				->set_status( Image_Status::OPTIMIZATION_FAILED )
-				->set_error_type( Image_Optimization_Error_Type::QUOTA_EXCEEDED )
-				->save();
-		} catch ( Connection_Error $ce ) {
-			( new Image_Meta( $image_id ) )
-				->set_status( Image_Status::OPTIMIZATION_FAILED )
-				->set_error_type( Image_Optimization_Error_Type::CONNECTION_ERROR )
-				->save();
-		} catch ( Image_File_Already_Exists_Error $fe ) {
-			( new Image_Meta( $image_id ) )
-				->set_status( Image_Status::OPTIMIZATION_FAILED )
-				->set_error_type( Image_Optimization_Error_Type::FILE_ALREADY_EXISTS )
-				->save();
-		} catch ( Bulk_Token_Expired_Error | Bulk_Optimization_Token_Not_Found_Error $bte ) {
-			( new Image_Meta( $image_id ) )
-				->set_status( Image_Status::NOT_OPTIMIZED )
+
+			$queue
+				->mark_image_completed( $image_id )
+				->increment_optimized_counter()
 				->save();
 
-			Bulk_Optimization_Controller::reschedule_bulk_optimization();
+		} catch ( Bulk_Token_Expired_Error $btee ) {
+			$queue->mark_image_failed( $image_id )->save();
+
+			Logger::info( "Token expired while optimizing image {$image_id}" );
+		} catch ( Quota_Exceeded_Error $qee ) {
+			$queue->mark_image_failed( $image_id )->save();
+
+			Logger::info( "Quota exceeded while optimizing image {$image_id}" );
+		} catch ( Throwable $e ) {
+			$queue->mark_image_failed( $image_id )->save();
+
+			Logger::info( "Failed to optimize image {$image_id}: " . $e->getMessage() );
+		}
+
+		$queue
+			->set_current_image_id( null )
+			->save();
+
+		try {
+			if ( $queue->has_more_images() ) {
+				Async_Operation::create(
+					Async_Operation_Hook::OPTIMIZE_BULK,
+					[ 'operation_id' => $queue->get_operation_id() ],
+					Async_Operation_Queue::OPTIMIZE
+				);
+
+				Logger::debug( 'Async operation created' );
+			} else {
+				Logger::debug( 'All images were optimized, deleting queue' );
+
+				$queue->delete();
+			}
 		} catch ( Throwable $t ) {
-			Logger::error( 'Bulk optimization error. Reason: ' . $t->getMessage() );
-
-			Retry::maybe_retry_optimization( $image_id );
-		} finally {
-			Optimization_Stats::get_image_stats( null, true );
+			Logger::error( "Failed to create next async operation or delete queue: " . $t->getMessage() );
 		}
 	}
 
 	/** @async */
-	public function reoptimize_bulk( int $image_id, string $operation_id ) {
-		try {
-			$image = new Image( $image_id );
+	public function reoptimize_bulk() {
+		$queue = new Bulk_Optimization_Queue( Bulk_Optimization_Queue_Type::REOPTIMIZATION );
 
-			if ( $image->can_be_restored() ) {
-				Image_Restore::restore( $image_id, true );
+		if ( ! $queue->exists() ) {
+			return;
+		}
+
+		if ( ! $queue->has_more_images() ) {
+			$queue->delete();
+
+			return;
+		}
+
+		if ( $queue->should_refresh_token() ) {
+			try {
+				$token_data = Bulk_Optimization_Token_Manager::obtain_token(
+					$queue->get_stats()[ Bulk_Optimization_Queue_Status::PENDING ],
+					$queue->get_max_batch_size()
+				);
+
+				$queue
+					->set_bulk_token(
+						$token_data['token'],
+						time() + HOUR_IN_SECONDS,
+						$token_data['batch_size']
+					)
+					->save();
+			} catch ( Throwable $t ) {
+				Logger::info( 'Failed to obtain bulk token: ' . $t->getMessage() );
+
+				foreach ( $queue->get_images_by_status( Bulk_Optimization_Queue_Status::PENDING ) as $image ) {
+					( new Image_Meta( $image['id'] ) )
+						->set_status( Image_Status::OPTIMIZATION_FAILED )
+						->save();
+				}
+
+				$queue->delete();
+
+				return;
 			}
+		}
 
-			$bulk_token = Bulk_Optimization_Controller::get_bulk_operation_token( $operation_id );
+		$image_id = $queue->get_next_image();
 
+		if ( ! $image_id ) {
+			$queue
+				->set_status( Bulk_Optimization_Queue_Status::COMPLETED )
+				->save();
+
+			return;
+		}
+
+		$queue
+			->set_current_image_id( $image_id )
+			->save();
+
+		try {
 			$oi = new Optimize_Image(
 				$image_id,
-				'bulk',
-				$bulk_token,
+				'bulk-reoptimize',
+				$queue->get_bulk_token(),
 				true
 			);
 
 			$oi->optimize();
-		} catch ( Quota_Exceeded_Error $qe ) {
-			( new Image_Meta( $image_id ) )
-				->set_status( Image_Status::REOPTIMIZING_FAILED )
-				->set_error_type( Image_Optimization_Error_Type::QUOTA_EXCEEDED )
-				->save();
-		} catch ( Connection_Error $ce ) {
-			( new Image_Meta( $image_id ) )
-				->set_status( Image_Status::OPTIMIZATION_FAILED )
-				->set_error_type( Image_Optimization_Error_Type::CONNECTION_ERROR )
-				->save();
-		} catch ( Image_File_Already_Exists_Error $fe ) {
-			( new Image_Meta( $image_id ) )
-				->set_status( Image_Status::REOPTIMIZING_FAILED )
-				->set_error_type( Image_Optimization_Error_Type::FILE_ALREADY_EXISTS )
-				->save();
-		} catch ( Bulk_Token_Expired_Error | Bulk_Optimization_Token_Not_Found_Error $bte ) {
-			( new Image_Meta( $image_id ) )
-				->set_status( Image_Status::NOT_OPTIMIZED )
+
+			$queue
+				->mark_image_completed( $image_id )
+				->increment_optimized_counter()
 				->save();
 
-			Bulk_Optimization_Controller::reschedule_bulk_reoptimization();
+		} catch ( Bulk_Token_Expired_Error $btee ) {
+			$queue->mark_image_failed( $image_id )->save();
+
+			Logger::info( "Token expired while reoptimizing image {$image_id}" );
+		} catch ( Quota_Exceeded_Error $qee ) {
+			$queue->mark_image_failed( $image_id )->save();
+
+			foreach ( $queue->get_images_by_status( Bulk_Optimization_Queue_Status::PENDING ) as $image ) {
+				( new Image_Meta( $image['id'] ) )
+					->set_status( Image_Status::OPTIMIZATION_FAILED )
+					->save();
+			}
+
+			$queue->delete();
+
+			Logger::info( "Quota exceeded while reoptimizing image {$image_id}" );
+
+			return;
+		} catch ( Throwable $e ) {
+			$queue->mark_image_failed( $image_id )->save();
+
+			Logger::info( "Failed to reoptimize image {$image_id}: " . $e->getMessage() );
+		}
+
+		$queue
+			->set_current_image_id( null )
+			->save();
+
+		try {
+			if ( $queue->has_more_images() ) {
+				Async_Operation::create(
+					Async_Operation_Hook::REOPTIMIZE_BULK,
+					[ 'operation_id' => $queue->get_operation_id() ],
+					Async_Operation_Queue::OPTIMIZE
+				);
+			} else {
+				$queue->delete();
+			}
 		} catch ( Throwable $t ) {
-			Logger::error( 'Bulk reoptimization error. Reason: ' . $t->getMessage() );
-
-			Retry::maybe_retry_optimization( $image_id );
-		} finally {
-			Optimization_Stats::get_image_stats( null, true );
+			Logger::error( "Failed to create next async operation or delete queue: " . $t->getMessage() );
 		}
 	}
 
@@ -146,11 +269,8 @@ class Bulk_Optimization {
 	 * @return void
 	 */
 	public function render_bulk_optimization_notice() {
-		try {
-			$is_in_progress = Bulk_Optimization_Controller::is_optimization_in_progress();
-		} catch ( Async_Operation_Exception $aoe ) {
-			$is_in_progress = false;
-		}
+		$queue = new Bulk_Optimization_Queue( Bulk_Optimization_Queue_Type::OPTIMIZATION );
+		$is_in_progress = $queue->exists();
 		?>
 		<div class="notice notice-info notice image-optimizer__notice image-optimizer__notice--info image-optimizer__notice--bulk-tip"
 				style="display: <?php echo $is_in_progress ? 'block' : 'none'; ?>">
@@ -174,14 +294,13 @@ class Bulk_Optimization {
 	}
 
 	public function __construct() {
+		add_action( Async_Operation_Hook::OPTIMIZE_BULK, [ $this, 'optimize_bulk' ] );
+		add_action( Async_Operation_Hook::REOPTIMIZE_BULK, [ $this, 'reoptimize_bulk' ] );
 
-		add_action( Async_Operation_Hook::OPTIMIZE_BULK, [ $this, 'optimize_bulk' ], 10, 2 );
-		add_action( Async_Operation_Hook::REOPTIMIZE_BULK, [ $this, 'reoptimize_bulk' ], 10, 2 );
-
-		add_action('current_screen', function () {
+		add_action( 'current_screen', function () {
 			if ( Utils::is_bulk_optimization_page() ) {
 				add_filter( 'admin_footer_text', [ $this, 'render_bulk_optimization_notice' ] );
 			}
-		});
+		} );
 	}
 }

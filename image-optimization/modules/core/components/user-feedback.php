@@ -100,7 +100,7 @@ class User_Feedback {
 				</b>
 
 				<span>
-					<?php printf(
+					<?php echo wp_kses_post( sprintf(
 						__(
 							'If you enjoyed using Image Optimizer, consider leaving a <a href="%1$s" aria-label="%2$s" target="_blank"
 				rel="noopener noreferrer">★★★★★</a> review to spread the word.',
@@ -108,7 +108,7 @@ class User_Feedback {
 						),
 						esc_url( self::NOTICE_FEEDBACK_LINK ),
 						esc_attr__( 'Five stars', 'image-optimization' )
-					); ?>
+					) ); ?>
 				</span>
 			</p>
 		</div>
@@ -172,7 +172,7 @@ class User_Feedback {
 				</b>
 
 				<span>
-					<?php printf(
+					<?php echo wp_kses_post( sprintf(
 						__(
 							'If you\'ve enjoyed it, consider leaving a <a href="%1$s" aria-label="%2$s" target="_blank"
 				rel="noopener noreferrer">★★★★★</a> review to spread the word.',
@@ -180,7 +180,7 @@ class User_Feedback {
 						),
 						esc_url( self::NOTICE_FEEDBACK_LINK ),
 						esc_attr__( 'Five stars', 'image-optimization' )
-					); ?>
+					) ); ?>
 				</span>
 			</p>
 		</div>
@@ -232,14 +232,14 @@ class User_Feedback {
 	 * @return void
 	 */
 	public function add_leave_feedback_footer_text(): void {
-		printf(
+		echo wp_kses_post( sprintf(
 			__( '<b>Found Image Optimizer helpful?</b> Leave us a <a href="%1$s" aria-label="%2$s" target="_blank"
 				rel="noopener noreferrer">★★★★★</a> rating!',
 				'image-optimization'
 			),
 			esc_url( self::FOOTER_FEEDBACK_LINK ),
 			esc_attr__( 'Five stars', 'image-optimization' )
-		);
+		) );
 	}
 
 	public function __construct() {

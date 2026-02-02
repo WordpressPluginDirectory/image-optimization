@@ -27,10 +27,14 @@ class Restore_All extends Route_Base {
 	}
 
 	public function POST( WP_REST_Request $request ) {
-		$this->verify_nonce_and_capability(
+		$error = $this->verify_nonce_and_capability(
 			$request->get_param( self::NONCE_NAME ),
 			self::NONCE_NAME
 		);
+
+		if ( $error ) {
+			return $error;
+		}
 
 		try {
 			Restore_Images::find_and_schedule_restoring();

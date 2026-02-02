@@ -14,7 +14,9 @@ class Pointers {
 			wp_send_json_error( [ 'message' => 'Invalid nonce' ] );
 		}
 
-		$pointer = sanitize_text_field( $_POST['data']['pointer'] ) ?? null;
+		$pointer = isset( $_POST['data']['pointer'] ) ?
+			sanitize_text_field( wp_unslash( $_POST['data']['pointer'] ) ) :
+			null;
 
 		if ( empty( $pointer ) ) {
 			wp_send_json_error( [ 'message' => 'The pointer id must be provided' ] );

@@ -46,7 +46,7 @@ class Connect {
 	 * @return bool
 	 */
 	public static function maybe_handle_admin_connect_page(): bool {
-		if ( ! isset( $_GET['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['nonce'] ) ), 'nonce_actionget_token' ) ) {
+		if ( ! isset( $_GET['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['nonce'] ) ), 'get_token' ) ) {
 			return false;
 		}
 
@@ -80,7 +80,7 @@ class Connect {
 		}
 
 		// validate nonce
-		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['nonce'] ) ), 'nonce_actionget_token' ) ) {
+		if ( empty( $_GET['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['nonce'] ) ), 'get_token' ) ) {
 			wp_die( 'Nonce verification failed', 'image-optimization' );
 		}
 
@@ -90,12 +90,12 @@ class Connect {
 				'app' => 'library',
 				'grant_type' => 'authorization_code',
 				'client_id' => Data::get_client_id(),
-				'code' => sanitize_text_field( $_GET['code'] ),
+				'code' => isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : null,
 			],
 		] );
 
 		if ( is_wp_error( $token_response ) ) {
-			wp_die( $token_response->get_error_message(), 'image-optimization' );
+			wp_die( esc_html( $token_response->get_error_message() ), 'image-optimization' );
 		}
 
 		$data = json_decode( wp_remote_retrieve_body( $token_response ), true );
@@ -171,10 +171,10 @@ class Connect {
 				'page'   => 'elementor-connect',
 				'app'    => 'library',
 				'action' => 'get_token',
-				'nonce'  => wp_create_nonce( 'nonce_action' . 'get_token' ),
+				'nonce'  => wp_create_nonce( 'get_token' ),
 			], admin_url( 'admin.php' ) ) ),
 			'may_share_data'  => 0,
-			'reconnect_nonce' => wp_create_nonce( 'nonce_action' . 'reconnect' ),
+			'reconnect_nonce' => wp_create_nonce( 'reconnect' ),
 		], Route_Base::SITE_URL . 'library' );
 	}
 

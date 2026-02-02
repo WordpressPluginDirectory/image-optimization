@@ -27,10 +27,14 @@ class Remove_Backups extends Route_Base {
 	}
 
 	public function DELETE( WP_REST_Request $request ) {
-		$this->verify_nonce_and_capability(
+		$error = $this->verify_nonce_and_capability(
 			$request->get_param( self::NONCE_NAME ),
 			self::NONCE_NAME
 		);
+
+		if ( $error ) {
+			return $error;
+		}
 
 		try {
 			Remove_All_Backups::find_and_schedule_removing();

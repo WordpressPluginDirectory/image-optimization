@@ -8,6 +8,8 @@ use ImageOptimization\Modules\Core\Module as Core_Module;
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
+
+$error_type = isset( $args['optimization_error_type'] ) ? $args['optimization_error_type'] : '';
 ?>
 <div class="image-optimization-control image-optimization-control--meta-box image-optimization-control--error"
 		data-image-optimization-context="meta-box"
@@ -34,7 +36,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 	<div class="image-optimization-control__action-button-wrapper">
 		<?php
-		if ( Image_Optimization_Error_Type::AUTH_ERROR === $args['optimization_error_type'] ) {
+		if ( Image_Optimization_Error_Type::AUTH_ERROR === $error_type ) {
 			?>
 			<a class="button button-secondary button-large image-optimization-control__button"
 				 href="<?php echo admin_url( 'admin.php?page=' . Settings_Module::SETTING_BASE_SLUG . '&action=connect' ); ?>"
@@ -42,7 +44,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<?php esc_html_e( 'Connect', 'image-optimization' ); ?>
 			</a>
 			<?php
-		} if ( Image_Optimization_Error_Type::CONNECTION_ERROR === $args['optimization_error_type'] ) {
+		} if ( Image_Optimization_Error_Type::CONNECTION_ERROR === $error_type ) {
 			?>
 			<button class="button button-secondary button-large button-link-delete image-optimization-control__button image-optimization-control__button--try-again"
 							type="button">
